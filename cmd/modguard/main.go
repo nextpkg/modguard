@@ -170,6 +170,7 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 	fs.Var(&excludeDirTest, "exclude-dir-test", "extra standalone test after removing dir: dir:pkgPattern (repeatable or CSV)")
 	skipStandalone := fs.Bool("skip-standalone", false, "skip out-of-repo standalone export tests at strict level")
 	withTools := fs.Bool("with-tools", false, "also run gofmt and go vet")
+	gci := fs.String("gci", "", "run gci import-order check (standard/default/prefix(<module>)); binary name or go run pkg@version")
 	staticcheck := fs.String("staticcheck", "", "run staticcheck (-checks=all ./...); binary name or go run pkg@version")
 	deadcode := fs.String("deadcode", "", "run deadcode (./...); binary name or go run pkg@version")
 	govulncheck := fs.String("govulncheck", "", "run govulncheck (./...); binary name or go run pkg@version")
@@ -215,6 +216,7 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 			ExcludeDirTests: excludeTests,
 			SkipStandalone:  *skipStandalone,
 			WithTools:       *withTools,
+			GCISpec:         strings.TrimSpace(*gci),
 			StaticcheckSpec: strings.TrimSpace(*staticcheck),
 			DeadcodeSpec:    strings.TrimSpace(*deadcode),
 			GovulncheckSpec: strings.TrimSpace(*govulncheck),

@@ -22,7 +22,7 @@ Standard Go tools (`gofmt`, `go vet`, `staticcheck`, `deadcode`, `govulncheck`, 
 - **Package hygiene**: blocks redundant top-level `pkg/` directories, generic trash package names (`util`, `utils`, `common`, `helper`, `helpers`, `misc`, `shared`, `pkg`), non-idiomatic package names, package/directory mismatches, and `init()` side effects (`os.Getenv`, `net.Dial`, `http.Get`, `sql.Open`) in non-`main` packages.
 - **API encapsulation**: uses `go/types` to catch exported types, functions, fields, generics, and interfaces leaking `internal/` types.
 - **Composable CLI rules**: compose `--allow-import`, `--forbid-import`, `--only-import-in`, `--forbid-layer`, `--forbid-call`, `--allow-env`, `--forbid-env`, `--allow-internal-in`, and `--exclude-dir-test` directly in your `Makefile` or CI scripts — no YAML schema to maintain.
-- **Optional tool orchestration**: run `gofmt` + `go vet` via `--with-tools`, and optionally chain `--staticcheck`, `--deadcode`, `--govulncheck`, and `--gosec` (accepting either a binary in `PATH` or a versioned `pkg@version` spec for `go run`).
+- **Optional tool orchestration**: run `gofmt` + `go vet` via `--with-tools`, and optionally chain `--gci` (auto-deriving `standard` / `default` / `prefix(<module>)` from `go.mod`), `--staticcheck`, `--deadcode`, `--govulncheck`, and `--gosec` (accepting either a binary in `PATH` or a versioned `pkg@version` spec for `go run`).
 - **SDK verification & scaffolding**: `modguard sdk check` validates multi- and single-provider Go SDK layouts, SSA supplier contract compliance, zero `internal/` re-exports, and out-of-repo instrumented external consumer tests.
 
 ## Commands

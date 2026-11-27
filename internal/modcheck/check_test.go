@@ -246,3 +246,38 @@ func Call(r runner) { r.InvokableRun() }
 		}
 	}
 }
+
+func TestGCIToolSpec(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"go.mod": "module example.invalid/gcimod\n\ngo 1.26.0\n",
+		"doc.go": "package gcimod\n",
+	})
+	fakeBin := filepath.Join(t.TempDir(), "fake-gci")
+	script := `#!/bin/sh
+for arg in "$@"; do
+  if [ "$arg" = "prefix(example.invalid/gcimod)" ]; then
+    echo "doc.go"
+    exit 0
+  fi
+done
+echo "missing expected prefix arg: $*" >&2
+exit 2
+`
+	if err := os.WriteFile(fakeBin, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Check(Options{
+		Dir:            dir,
+		Level:          LevelStandard,
+		GCISpec:        fakeBin,
+		SkipStandalone: true,
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	joined := strings.Join(res.Problems, "\n")
+	if !strings.Contains(joined, "[tools/gci]") || !strings.Contains(joined, "doc.go") {
+		t.Fatalf("expected [tools/gci] reporting doc.go, got:\n%s", joined)
+	}
+}

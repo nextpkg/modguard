@@ -71,6 +71,7 @@ type Options struct {
 	ExcludeDirTests []Pair
 	SkipStandalone  bool
 	WithTools       bool
+	GCISpec         string
 	StaticcheckSpec string
 	DeadcodeSpec    string
 	GovulncheckSpec string
@@ -537,6 +538,16 @@ func (c *checker) runExternalTools() {
 		}
 		if _, err := runCmd(c.dir, "go", "vet", "./..."); err != nil {
 			c.report(".", 0, "tools/vet", err.Error())
+		}
+	}
+	if c.opts.GCISpec != "" {
+		if out, err := runToolSpec(c.dir, c.opts.GCISpec,
+			"list", "--skip-generated", "--skip-vendor",
+			"-s", "standard", "-s", "default", "-s", "prefix("+c.modPath+")", ".",
+		); err != nil {
+			c.report(".", 0, "tools/gci", err.Error())
+		} else if trimmed := strings.TrimSpace(out); trimmed != "" {
+			c.report(".", 0, "tools/gci", "ungrouped Go imports: "+strings.ReplaceAll(trimmed, "\n", ", "))
 		}
 	}
 	if c.opts.StaticcheckSpec != "" {
