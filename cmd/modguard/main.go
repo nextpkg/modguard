@@ -20,7 +20,7 @@ import (
 // version can be overridden at build time via -ldflags "-X main.version=v0.1.0".
 var version = ""
 
-const usageText = `modguard — Zero-config Go module boundary guard and scaffold tool
+const usageText = `modguard — Go module boundary guard, standalone export verifier, and SDK scaffold CLI
 
 Usage:
   modguard check [flags] [dir ...]          Check one or more standalone Go modules (default: .)

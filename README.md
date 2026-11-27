@@ -1,6 +1,6 @@
 # modguard
 
-`modguard` is a **zero-YAML, composable CLI** for enforcing Go module boundaries, package architecture rules, out-of-repo standalone exportability, and SDK contracts — plus generating compliant standalone module and SDK scaffolds.
+`modguard` is a composable Go CLI for enforcing module boundaries, package architecture rules, out-of-repo standalone exportability, and SDK contracts — plus generating compliant standalone module and SDK scaffolds.
 
 ## Install
 
