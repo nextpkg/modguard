@@ -1,0 +1,14 @@
+// Package {{.Name}} defines the {{.Name}} SDK.
+package {{.Name}}
+
+// Config is supplied by the caller when constructing the SDK.
+type Config struct {
+{{- if .Supplier}}
+    // Provider selects the implementation. An empty value selects {{.Supplier}}.
+    Provider string `json:"{{.Prefix}}_PROVIDER" scope:"backend" condition:"optional"`
+{{- else}}
+    // Add platform settings here when the first operation needs them.
+    // Example credential field:
+    // APIKey string `json:"{{.Prefix}}_API_KEY" scope:"backend" condition:"optional" secret:"true"`
+{{- end}}
+}

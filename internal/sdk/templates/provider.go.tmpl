@@ -1,0 +1,8 @@
+package {{.Name}}
+
+import "context"
+
+// Provider implements the operations available to {{.Name}} callers.
+type Provider interface {
+    {{.Op}}(context.Context, {{.Op}}Input) ({{.Op}}Result, error)
+}

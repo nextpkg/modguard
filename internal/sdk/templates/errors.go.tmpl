@@ -1,0 +1,10 @@
+package {{.Name}}
+
+import "errors"
+
+// ErrNotImplemented marks the operation until its implementation is connected.
+var ErrNotImplemented = errors.New("{{.Name}}: operation not implemented")
+{{if .Supplier}}
+// ErrUnknownProvider indicates that Config.Provider names an unavailable implementation.
+var ErrUnknownProvider = errors.New("{{.Name}}: unknown provider")
+{{end}}

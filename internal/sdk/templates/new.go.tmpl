@@ -1,0 +1,17 @@
+// Package provider assembles {{.Name}} implementations.
+package provider
+
+import (
+    {{if ne .FactorySDK .Name}}{{.FactorySDK}} {{end}}"{{.Path}}"
+    {{if ne .SupplierRef .Supplier}}{{.SupplierRef}} {{end}}"{{.Path}}/internal/providers/{{.Supplier}}"
+)
+
+// New constructs the provider selected by cfg.
+func New(cfg {{.FactorySDK}}.Config) ({{.FactorySDK}}.Provider, error) {
+    switch cfg.Provider {
+    case "", "{{.Supplier}}":
+        return {{.SupplierRef}}.New(cfg), nil
+    default:
+        return nil, {{.FactorySDK}}.ErrUnknownProvider
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "common": [
+    {"role": "config", "path": "config.go"},
+    {"role": "types", "path": "types.go"},
+    {"role": "errors", "path": "errors.go"}
+  ],
+  "multi": [
+    {"role": "interface", "path": "provider.go"},
+    {"role": "factory", "path": "provider/new.go"},
+    {"role": "supplier", "path": "internal/providers/{provider}/client.go"}
+  ],
+  "single": [
+    {"role": "client", "path": "client.go"}
+  ]
+}

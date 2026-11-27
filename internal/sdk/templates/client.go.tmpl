@@ -1,0 +1,24 @@
+{{if .Supplier}}// Package {{.Supplier}} implements {{.Name}} using {{.Supplier}}.
+package {{.Supplier}}
+{{else}}package {{.Name}}
+{{end}}
+import (
+    "context"
+    {{if .Supplier}}
+    {{if ne .SDKRef .Name}}{{.SDKRef}} {{end}}"{{.Path}}"
+    {{end}}
+)
+
+// Client implements {{.Op}}.
+type Client struct{}
+
+// New constructs the client. Wire configuration into the supplier implementation here.
+func New({{.Qualifier}}Config) *Client { return &Client{} }
+
+// {{.Op}} performs the operation using the caller's context.
+func (*Client) {{.Op}}(ctx context.Context, input {{.Qualifier}}{{.Op}}Input) ({{.Qualifier}}{{.Op}}Result, error) {
+    if err := ctx.Err(); err != nil {
+        return {{.Qualifier}}{{.Op}}Result{}, err
+    }
+    return {{.Qualifier}}{{.Op}}Result{}, {{.Qualifier}}ErrNotImplemented
+}
