@@ -11,7 +11,9 @@
 
 ## Layout
 
-- `cmd/modguard/`: CLI entry point (`check`, `new`, `sdk check`, `sdk new`, `version`, `help`), interleaved flag parsing, composable `stringList` flags, and CLI tests (`main_test.go`).
+- `cmd/modguard/`: CLI entry point (`check`, `new`, `sdk check`, `sdk new`, `skill install|update|remove`, `version`, `help`), interleaved flag parsing, composable `stringList` flags, and CLI tests (`main_test.go`).
+- `skill_embed.go`: embeds `skill/` into the binary via `//go:embed` (`modguard.SkillFS`).
+- `internal/skillmgr/`: installs, updates, and removes the embedded skill in target repositories with frontmatter ownership verification (`skillmgr.go`, `skillmgr_test.go`).
 - `internal/modcheck/`: standalone module checker (`check.go`), `service`/`lib` scaffold generator (`scaffold.go`), and tests (`check_test.go`).
 - `internal/sdk/`: SDK collection layout validator (`sdk.go`, `layout.go`), `go/types` API leak and binding re-export checker (`api.go`), SSA supplier contract checker (`supplier.go`), out-of-repo standalone + instrumented consumer coverage verifier (`standalone.go`, `coverage.go`), and SDK scaffolder (`generate.go`, `templates/`).
 - `skill/`: generic reusable agent skill (`SKILL.md` + `references/`) for consumers who adopt `modguard`.

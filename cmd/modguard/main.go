@@ -11,8 +11,10 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/nextpkg/modguard"
 	"github.com/nextpkg/modguard/internal/modcheck"
 	"github.com/nextpkg/modguard/internal/sdk"
+	"github.com/nextpkg/modguard/internal/skillmgr"
 )
 
 // version can be overridden at build time via -ldflags "-X main.version=v0.1.0".
@@ -21,12 +23,15 @@ var version = ""
 const usageText = `modguard — Zero-config Go module boundary guard and scaffold tool
 
 Usage:
-  modguard check [flags] [dir ...]     Check one or more standalone Go modules (default: .)
-  modguard new [flags]                 Scaffold a standalone Go service or library module
-  modguard sdk check [flags] [dir]     Check an SDK collection and standalone consumer tests (default: .)
-  modguard sdk new [flags] [dir]       Scaffold a multi- or single-provider Go SDK (default: .)
-  modguard version                     Print modguard version
-  modguard help [command]              Show help for modguard or a subcommand
+  modguard check [flags] [dir ...]          Check one or more standalone Go modules (default: .)
+  modguard new [flags]                      Scaffold a standalone Go service or library module
+  modguard sdk check [flags] [dir]          Check an SDK collection and standalone consumer tests (default: .)
+  modguard sdk new [flags] [dir]            Scaffold a multi- or single-provider Go SDK (default: .)
+  modguard skill install [flags] [dir]      Install modguard skill into a target repo (default: .)
+  modguard skill update [flags] [dir]       Update an existing modguard skill installation (default: .)
+  modguard skill remove [flags] [dir]       Remove modguard skill from a target repo (default: .)
+  modguard version                          Print modguard version
+  modguard help [command]                   Show help for modguard or a subcommand
 
 Levels (--level for check):
   relaxed    Cross-module imports, relative imports, symlinks, local replace
@@ -42,6 +47,14 @@ const sdkUsageText = `Usage:
   modguard sdk new [flags] [dir]       Scaffold a multi- or single-provider Go SDK (default: .)
 
 Run "modguard sdk <subcommand> -h" for flags.
+`
+
+const skillUsageText = `Usage:
+  modguard skill install [flags] [dir]   Install modguard skill into <dir>/.agents/skills/modguard (default: .)
+  modguard skill update [flags] [dir]    Update an existing modguard skill installation (default: .)
+  modguard skill remove [flags] [dir]    Remove an installed modguard skill (default: .)
+
+Run "modguard skill <subcommand> -h" for flags.
 `
 
 func main() {
@@ -61,6 +74,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = runNew(args[1:], stdout, stderr)
 	case "sdk":
 		err = runSDK(args[1:], stdout, stderr)
+	case "skill":
+		err = runSkill(args[1:], stdout, stderr)
 	case "version", "-v", "--version":
 		fmt.Fprintf(stdout, "modguard %s\n", buildVersion())
 		return 0
@@ -107,6 +122,13 @@ func runHelp(args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 		fmt.Fprint(stdout, sdkUsageText)
+		return 0
+	case "skill":
+		if len(args) > 1 {
+			_ = runSkill([]string{args[1], "-h"}, stdout, stdout)
+			return 0
+		}
+		fmt.Fprint(stdout, skillUsageText)
 		return 0
 	case "version":
 		fmt.Fprintln(stdout, "Usage: modguard version\n\nPrint the modguard binary version.")
@@ -326,6 +348,75 @@ func runSDKNew(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "created %s\n", target)
+	return nil
+}
+
+func runSkill(args []string, stdout, stderr io.Writer) error {
+	if len(args) == 0 {
+		fmt.Fprint(stderr, skillUsageText)
+		return usageError{"missing skill subcommand (use install, update, or remove)"}
+	}
+	switch args[0] {
+	case "install", "update", "remove":
+		return runSkillAction(args[0], args[1:], stdout, stderr)
+	case "-h", "--help", "help":
+		fmt.Fprint(stdout, skillUsageText)
+		return nil
+	default:
+		fmt.Fprintf(stderr, "unknown skill subcommand %q\n\n%s", args[0], skillUsageText)
+		return usageError{fmt.Sprintf("unknown skill subcommand %q", args[0])}
+	}
+}
+
+func runSkillAction(action string, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("modguard skill "+action, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintf(stderr, "Usage: modguard skill %s [flags] [dir]\n\nManage the bundled modguard agent skill in target repository [dir] (default: .).\n\nFlags:\n", action)
+		fs.PrintDefaults()
+	}
+
+	dest := fs.String("dest", skillmgr.DefaultSkillsDir, "skills parent directory (relative to dir, or absolute)")
+	var force *bool
+	if action != "remove" {
+		force = fs.Bool("force", false, "overwrite on install, or install if missing on update")
+	}
+	pos, err := parseFlagsInterleaved(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) > 1 {
+		return usageError{fmt.Sprintf("expected at most one target directory, got %d arguments", len(pos))}
+	}
+	dir := "."
+	if len(pos) == 1 {
+		dir = pos[0]
+	}
+	opts := skillmgr.Options{
+		TargetDir: dir,
+		DestDir:   *dest,
+		Force:     force != nil && *force,
+	}
+	switch action {
+	case "install":
+		target, err := skillmgr.Install(modguard.SkillFS, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "installed modguard skill to %s\n", target)
+	case "update":
+		target, err := skillmgr.Update(modguard.SkillFS, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "updated modguard skill at %s\n", target)
+	case "remove":
+		target, err := skillmgr.Remove(opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "removed modguard skill from %s\n", target)
+	}
 	return nil
 }
 

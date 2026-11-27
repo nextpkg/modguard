@@ -18,6 +18,11 @@ description: Standalone Go module and SDK architecture discipline using github.c
 # Install globally
 go install github.com/nextpkg/modguard/cmd/modguard@latest
 
+# Install, update, or remove this skill in any repository (default: ./.agents/skills/modguard)
+modguard skill install /path/to/repo
+modguard skill update /path/to/repo
+modguard skill remove /path/to/repo
+
 # Check one or more standalone modules (strict includes out-of-repo GOWORK=off export test)
 modguard check --level strict ./service-a ./service-b
 

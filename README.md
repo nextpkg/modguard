@@ -28,12 +28,15 @@ Standard Go tools (`gofmt`, `go vet`, `staticcheck`, `deadcode`, `govulncheck`, 
 ## Commands
 
 ```text
-modguard check [flags] [dir ...]     Check one or more standalone Go modules (default: .)
-modguard new [flags]                 Scaffold a standalone Go service or library module
-modguard sdk check [flags] [dir]     Check an SDK collection and standalone consumer tests (default: .)
-modguard sdk new [flags] [dir]       Scaffold a multi- or single-provider Go SDK (default: .)
-modguard version                     Print modguard version
-modguard help [command]              Show help for modguard or a subcommand
+modguard check [flags] [dir ...]          Check one or more standalone Go modules (default: .)
+modguard new [flags]                      Scaffold a standalone Go service or library module
+modguard sdk check [flags] [dir]          Check an SDK collection and standalone consumer tests (default: .)
+modguard sdk new [flags] [dir]            Scaffold a multi- or single-provider Go SDK (default: .)
+modguard skill install [flags] [dir]      Install modguard skill into a target repo (default: .)
+modguard skill update [flags] [dir]       Update an existing modguard skill installation (default: .)
+modguard skill remove [flags] [dir]       Remove modguard skill from a target repo (default: .)
+modguard version                          Print modguard version
+modguard help [command]                   Show help for modguard or a subcommand
 ```
 
 ### Strictness Levels (`modguard check --level`)
@@ -93,7 +96,23 @@ modguard sdk check ./sdks
 
 ## Bundled Agent Skill
 
-A reusable AI agent skill covering Go module architecture, SDK design boundaries, and semantic review checklists is included under [`skill/`](skill/SKILL.md).
+A reusable AI agent skill covering Go module architecture, SDK design boundaries, and semantic review checklists is embedded directly in the `modguard` binary and maintained under [`skill/`](skill/SKILL.md).
+
+Install, update, or remove it in any repository:
+
+```sh
+# Install into ./.agents/skills/modguard (or specify another repo path)
+modguard skill install /path/to/repo
+
+# Custom skills directory (e.g. .claude/skills or an absolute path)
+modguard skill install --dest .claude/skills /path/to/repo
+
+# Update an existing installation (replaces files cleanly and removes stale ones)
+modguard skill update /path/to/repo
+
+# Remove an installed modguard skill (verifies SKILL.md ownership before deleting)
+modguard skill remove /path/to/repo
+```
 
 ## License
 

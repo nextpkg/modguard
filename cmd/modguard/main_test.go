@@ -91,3 +91,33 @@ func TestCLISDKNewAndCheck(t *testing.T) {
 		t.Fatalf("unexpected sdk check stdout: %q", out.String())
 	}
 }
+
+func TestCLISkillLifecycle(t *testing.T) {
+	repo := t.TempDir()
+	var out, errBuf bytes.Buffer
+
+	if code := run([]string{"skill", "install", repo}, &out, &errBuf); code != 0 {
+		t.Fatalf("skill install exit=%d stderr=%s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "installed modguard skill") {
+		t.Fatalf("unexpected install stdout: %q", out.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	if code := run([]string{"skill", "update", repo}, &out, &errBuf); code != 0 {
+		t.Fatalf("skill update exit=%d stderr=%s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "updated modguard skill") {
+		t.Fatalf("unexpected update stdout: %q", out.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	if code := run([]string{"skill", "remove", repo}, &out, &errBuf); code != 0 {
+		t.Fatalf("skill remove exit=%d stderr=%s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "removed modguard skill") {
+		t.Fatalf("unexpected remove stdout: %q", out.String())
+	}
+}
