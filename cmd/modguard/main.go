@@ -170,11 +170,13 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 	fs.Var(&excludeDirTest, "exclude-dir-test", "extra standalone test after removing dir: dir:pkgPattern (repeatable or CSV)")
 	skipStandalone := fs.Bool("skip-standalone", false, "skip out-of-repo standalone export tests at strict level")
 	withTools := fs.Bool("with-tools", false, "also run gofmt and go vet")
-	gci := fs.String("gci", "", "run gci import-order check (standard/default/prefix(<module>)); binary name or go run pkg@version")
-	staticcheck := fs.String("staticcheck", "", "run staticcheck (-checks=all ./...); binary name or go run pkg@version")
-	deadcode := fs.String("deadcode", "", "run deadcode (./...); binary name or go run pkg@version")
-	govulncheck := fs.String("govulncheck", "", "run govulncheck (./...); binary name or go run pkg@version")
-	gosec := fs.String("gosec", "", "run gosec (-quiet -exclude=G104 ./...); binary name or go run pkg@version")
+	allTools := fs.Bool("all-tools", false, "run gofmt, go vet, gci, staticcheck, and deadcode using verified pinned versions")
+	security := fs.Bool("security", false, "run govulncheck and gosec using verified pinned versions")
+	gci := fs.String("gci", "", "run gci import-order check (auto, binary name, or go run pkg@version)")
+	staticcheck := fs.String("staticcheck", "", "run staticcheck -checks=all ./... (auto, binary name, or go run pkg@version)")
+	deadcode := fs.String("deadcode", "", "run deadcode ./... (auto, binary name, or go run pkg@version)")
+	govulncheck := fs.String("govulncheck", "", "run govulncheck ./... (auto, binary name, or go run pkg@version)")
+	gosec := fs.String("gosec", "", "run gosec -quiet -exclude=G104 ./... (auto, binary name, or go run pkg@version)")
 
 	dirs, err := parseFlagsInterleaved(fs, args)
 	if err != nil {
@@ -216,6 +218,8 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 			ExcludeDirTests: excludeTests,
 			SkipStandalone:  *skipStandalone,
 			WithTools:       *withTools,
+			AllTools:        *allTools,
+			Security:        *security,
 			GCISpec:         strings.TrimSpace(*gci),
 			StaticcheckSpec: strings.TrimSpace(*staticcheck),
 			DeadcodeSpec:    strings.TrimSpace(*deadcode),

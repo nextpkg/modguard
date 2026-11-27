@@ -71,6 +71,8 @@ type Options struct {
 	ExcludeDirTests []Pair
 	SkipStandalone  bool
 	WithTools       bool
+	AllTools        bool
+	Security        bool
 	GCISpec         string
 	StaticcheckSpec string
 	DeadcodeSpec    string
@@ -529,8 +531,16 @@ func findInternalType(t types.Type, internalPrefix string, seen map[types.Type]b
 	return ""
 }
 
+const (
+	defaultGCISpec         = "github.com/daixiang0/gci@v0.13.7"
+	defaultStaticcheckSpec = "honnef.co/go/tools/cmd/staticcheck@v0.8.2"
+	defaultDeadcodeSpec    = "golang.org/x/tools/cmd/deadcode@v0.52.0"
+	defaultGovulncheckSpec = "golang.org/x/vuln/cmd/govulncheck@v1.10.0"
+	defaultGosecSpec       = "github.com/securego/gosec/v2/cmd/gosec@v2.30.0"
+)
+
 func (c *checker) runExternalTools() {
-	if c.opts.WithTools {
+	if c.opts.WithTools || c.opts.AllTools {
 		if out, err := runCmd(c.dir, "gofmt", "-l", "."); err != nil {
 			c.report(".", 0, "tools/gofmt", err.Error())
 		} else if trimmed := strings.TrimSpace(out); trimmed != "" {
@@ -540,8 +550,8 @@ func (c *checker) runExternalTools() {
 			c.report(".", 0, "tools/vet", err.Error())
 		}
 	}
-	if c.opts.GCISpec != "" {
-		if out, err := runToolSpec(c.dir, c.opts.GCISpec,
+	if spec := resolveToolSpec(c.opts.GCISpec, c.opts.AllTools, defaultGCISpec); spec != "" {
+		if out, err := runToolSpec(c.dir, spec,
 			"list", "--skip-generated", "--skip-vendor",
 			"-s", "standard", "-s", "default", "-s", "prefix("+c.modPath+")", ".",
 		); err != nil {
@@ -550,28 +560,45 @@ func (c *checker) runExternalTools() {
 			c.report(".", 0, "tools/gci", "ungrouped Go imports: "+strings.ReplaceAll(trimmed, "\n", ", "))
 		}
 	}
-	if c.opts.StaticcheckSpec != "" {
-		if _, err := runToolSpec(c.dir, c.opts.StaticcheckSpec, "-checks=all", "./..."); err != nil {
+	if spec := resolveToolSpec(c.opts.StaticcheckSpec, c.opts.AllTools, defaultStaticcheckSpec); spec != "" {
+		if _, err := runToolSpec(c.dir, spec, "-checks=all", "./..."); err != nil {
 			c.report(".", 0, "tools/staticcheck", err.Error())
 		}
 	}
-	if c.opts.DeadcodeSpec != "" {
-		if out, err := runToolSpec(c.dir, c.opts.DeadcodeSpec, "./..."); err != nil {
+	if spec := resolveToolSpec(c.opts.DeadcodeSpec, c.opts.AllTools, defaultDeadcodeSpec); spec != "" {
+		if out, err := runToolSpec(c.dir, spec, "./..."); err != nil {
 			c.report(".", 0, "tools/deadcode", err.Error())
 		} else if trimmed := strings.TrimSpace(out); trimmed != "" {
 			c.report(".", 0, "tools/deadcode", "unreachable functions:\n"+trimmed)
 		}
 	}
-	if c.opts.GovulncheckSpec != "" {
-		if _, err := runToolSpec(c.dir, c.opts.GovulncheckSpec, "./..."); err != nil {
+	if spec := resolveToolSpec(c.opts.GovulncheckSpec, c.opts.Security, defaultGovulncheckSpec); spec != "" {
+		if _, err := runToolSpec(c.dir, spec, "./..."); err != nil {
 			c.report(".", 0, "security/govulncheck", err.Error())
 		}
 	}
-	if c.opts.GosecSpec != "" {
-		if _, err := runToolSpec(c.dir, c.opts.GosecSpec, "-quiet", "-exclude=G104", "./..."); err != nil {
+	if spec := resolveToolSpec(c.opts.GosecSpec, c.opts.Security, defaultGosecSpec); spec != "" {
+		if _, err := runToolSpec(c.dir, spec, "-quiet", "-exclude=G104", "./..."); err != nil {
 			c.report(".", 0, "security/gosec", err.Error())
 		}
 	}
+}
+
+// resolveToolSpec resolves an explicit tool spec or auto-enables it when enabled
+// is true. "auto"/"default" uses the verified pinned go run spec so it always
+// builds with the active Go toolchain (avoiding stale binaries on PATH).
+func resolveToolSpec(spec string, enabled bool, fallbackSpec string) string {
+	s := strings.TrimSpace(spec)
+	if s == "" {
+		if !enabled {
+			return ""
+		}
+		return fallbackSpec
+	}
+	if strings.EqualFold(s, "auto") || strings.EqualFold(s, "default") {
+		return fallbackSpec
+	}
+	return s
 }
 
 // runToolSpec runs either `go run <spec> <args...>` when spec contains '@'
