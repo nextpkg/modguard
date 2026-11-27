@@ -2,13 +2,14 @@
 
 Principle: **enforce structural and dependency rules automatically with `modguard check`; review naming, domain decomposition, and abstraction boundaries deliberately.**
 
-## Three Standard Go Module Paradigms
+## Four Standard Go Module Paradigms
 
-| Module Kind | Recommended Layout | Typical Use |
-| --- | --- | --- |
-| **Reusable Library / SDK** | Root package (capability interfaces, `Config`, `Option`, `errors.go`) + optional `provider/` + `internal/` + black-box `*_test.go` | Shared packages, frameworks, protocol SDKs |
-| **Focused Service / CLI** | `cmd/<name>/main.go` (single place reading env & wiring) + `internal/` + optional root package (only when embeddable) + `go.mod` / `Makefile` / `README.md` | Gateways, workers, proxies, CLI tools |
-| **Domain-Rich Service** | `cmd/<app>/main.go` + `internal/<domain>/` (split by business domain; within a domain use `http`/`service`/`repository` only when complexity warrants it) + `internal/platform/` (infrastructure; never imports domain) | Product APIs, workflow backends |
+| Module Kind | Recommended Layout | Guard Command | Typical Use |
+| --- | --- | --- | --- |
+| **Pure Library / Protocol Package** | Root package organized by responsibility (`types.go`, `codec.go`, `errors.go`) + optional `internal/` + black-box `*_test.go` (no forced `Client`/`Config`) | `modguard check --level strict --forbid-env` | Protocol codecs, state machines, parsers, shared contracts |
+| **External Client SDK** | Root package (`Config`, `types.go`, `errors.go`, `Client` or `Provider`) + `provider/` + `internal/providers/*` + `testdata/consumer_test.go` | `modguard sdk check <sdks-dir>` | Third-party / platform API clients (OCR, OAuth, OSS, LLM) |
+| **Focused Service / CLI** | `cmd/<name>/main.go` (single place reading env & wiring) + `internal/` + optional root package (only when embeddable) + `go.mod` / `Makefile` / `README.md` | `modguard check --level strict --allow-env ...` | Gateways, workers, proxies, CLI tools |
+| **Domain-Rich Service** | `cmd/<app>/main.go` + `internal/<domain>/` (split by business domain; within a domain use `http`/`service`/`repository` only when complexity warrants it) + `internal/platform/` (infrastructure; never imports domain) | `modguard check --level strict --forbid-layer ...` | Product APIs, workflow backends |
 
 ## Design Rules Beyond Static Analysis
 

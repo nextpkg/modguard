@@ -1,6 +1,8 @@
 # Building and Reviewing Go SDKs with `modguard`
 
-When creating or modifying an SDK collection, verify with `modguard sdk check <sdks-dir>`.
+When creating or modifying an external supplier/platform client SDK collection, verify with `modguard sdk check <sdks-dir>`.
+
+> **Scope**: `modguard sdk check` is strictly for **external client SDKs** (single-platform `Config` + `New(Config) *Client`, or multi-provider `provider/` + `internal/providers/*`). For stateless protocol/codec or pure helper libraries that do not wrap an external client, **do not** place them under `<sdks-dir>` or invent a dummy `Client`/`Config` — use `modguard new --kind lib` and follow [library.md](library.md).
 
 ## Scaffolding a New SDK
 

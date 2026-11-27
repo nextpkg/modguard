@@ -9,8 +9,11 @@ description: Standalone Go module and SDK architecture discipline using github.c
 
 ## Reference Routing
 
-- **Building or reviewing reusable Go SDKs** (multi-provider `provider/` + `internal/providers/` or single-platform `Client`, external consumer tests) → read [references/sdk.md](references/sdk.md)
-- **Designing standalone Go services or libraries** (directory layout paradigms, naming discipline, composable boundary flags) → read [references/service-module.md](references/service-module.md)
+Choose the right category before creating files — **do not force pure libraries into an `sdk check` directory**:
+
+- **External supplier / platform client SDKs** (calls an external API/service; needs `Config` + `Client` or `provider/` + `internal/providers/*` + external consumer tests) → read [references/sdk.md](references/sdk.md) and run `modguard sdk check`
+- **Pure libraries & protocol packages** (codecs, wire types, state machines, parsers, shared contracts — no external client/IO; never fabricate a dummy `Client`/`Config`) → read [references/library.md](references/library.md) and run `modguard check --level strict --forbid-env`
+- **Standalone Go services & CLIs** (`cmd/<name>/main.go`, explicit env allowlists, layer direction rules) → read [references/service-module.md](references/service-module.md) and run `modguard check --level strict`
 
 ## Quick Commands
 
@@ -56,6 +59,7 @@ Static analysis cannot judge domain semantics. Always review these explicitly:
 - **Small interfaces & no pass-through bloat**: accept small interfaces, return concrete types; do not invent single-implementation mega-interfaces or empty pass-through layers solely for symmetry.
 - **Error & logging boundaries**: never leak raw SQL, vendor payloads, or secrets into external error messages; wrap errors with `%w` and log once at the handling boundary.
 - **Behavior-driven tests**: test observable contracts and failure modes (timeouts, cancellation, invalid input, upstream errors); do not test mocks against themselves or treat offline fakes as live integration verification.
+- **Wire every new module into CI**: every new service, library, or SDK collection must expose a module-level `check`/`verify` target and be wired into (or auto-discovered by) the repository's top-level `verify` / CI gate so newly added modules are never silently skipped.
 
 ## Skill Self-Maintenance & Tool Feedback
 
