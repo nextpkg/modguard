@@ -12,6 +12,14 @@ import (
 
 var validModuleDir = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+func isReservedPkgName(name string) bool {
+	switch name {
+	case "main", "init", "internal", "vendor", "testdata", "cmd":
+		return true
+	}
+	return false
+}
+
 // ScaffoldOptions defines parameters for generating a compliant standalone Go module.
 type ScaffoldOptions struct {
 	ParentDir  string
@@ -36,7 +44,7 @@ func GenerateModule(opts ScaffoldOptions) (string, error) {
 		return "", fmt.Errorf("invalid module name %q (use lowercase letters, digits, hyphens)", name)
 	}
 	pkgName := strings.ReplaceAll(name, "-", "")
-	if !token.IsIdentifier(pkgName) || token.Lookup(pkgName).IsKeyword() || types.Universe.Lookup(pkgName) != nil || trashPackageNames[pkgName] {
+	if isReservedPkgName(pkgName) || !token.IsIdentifier(pkgName) || token.Lookup(pkgName).IsKeyword() || types.Universe.Lookup(pkgName) != nil || trashPackageNames[pkgName] {
 		return "", fmt.Errorf("invalid Go package name %q derived from %q", pkgName, name)
 	}
 	modPath := strings.TrimSpace(opts.ModulePath)
@@ -49,6 +57,9 @@ func GenerateModule(opts ScaffoldOptions) (string, error) {
 	}
 	parent, err := filepath.Abs(opts.ParentDir)
 	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(parent, 0755); err != nil {
 		return "", err
 	}
 	target := filepath.Join(parent, name)

@@ -91,6 +91,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return 0
 	}
+	var pue printedUsageError
+	if errors.As(err, &pue) {
+		return 2
+	}
 	var ue usageError
 	if errors.As(err, &ue) {
 		fmt.Fprintln(stderr, ue.Error())
@@ -103,6 +107,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 type usageError struct{ msg string }
 
 func (e usageError) Error() string { return e.msg }
+
+type printedUsageError struct{ err error }
+
+func (e printedUsageError) Error() string { return e.err.Error() }
+func (e printedUsageError) Unwrap() error { return e.err }
 
 func runHelp(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -118,14 +127,20 @@ func runHelp(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "sdk":
 		if len(args) > 1 {
-			_ = runSDK([]string{args[1], "-h"}, stdout, stdout)
+			if err := runSDK([]string{args[1], "-h"}, stdout, stdout); err != nil && !errors.Is(err, flag.ErrHelp) {
+				fmt.Fprintln(stderr, err)
+				return 2
+			}
 			return 0
 		}
 		fmt.Fprint(stdout, sdkUsageText)
 		return 0
 	case "skill":
 		if len(args) > 1 {
-			_ = runSkill([]string{args[1], "-h"}, stdout, stdout)
+			if err := runSkill([]string{args[1], "-h"}, stdout, stdout); err != nil && !errors.Is(err, flag.ErrHelp) {
+				fmt.Fprintln(stderr, err)
+				return 2
+			}
 			return 0
 		}
 		fmt.Fprint(stdout, skillUsageText)
@@ -298,8 +313,7 @@ func runSDK(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stdout, sdkUsageText)
 		return nil
 	default:
-		fmt.Fprintf(stderr, "unknown sdk subcommand %q\n\n%s", args[0], sdkUsageText)
-		return usageError{fmt.Sprintf("unknown sdk subcommand %q", args[0])}
+		return usageError{fmt.Sprintf("unknown sdk subcommand %q\n\n%s", args[0], sdkUsageText)}
 	}
 }
 
@@ -369,8 +383,7 @@ func runSkill(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stdout, skillUsageText)
 		return nil
 	default:
-		fmt.Fprintf(stderr, "unknown skill subcommand %q\n\n%s", args[0], skillUsageText)
-		return usageError{fmt.Sprintf("unknown skill subcommand %q", args[0])}
+		return usageError{fmt.Sprintf("unknown skill subcommand %q\n\n%s", args[0], skillUsageText)}
 	}
 }
 
@@ -474,7 +487,10 @@ func parseFlagsInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
 		}
 	}
 	if err := fs.Parse(flagArgs); err != nil {
-		return nil, err
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, err
+		}
+		return nil, printedUsageError{err}
 	}
 	posArgs = append(posArgs, fs.Args()...)
 	return posArgs, nil

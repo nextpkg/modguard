@@ -100,10 +100,10 @@ var trashPackageNames = map[string]bool{
 var validPkgNameRe = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 
 var forbiddenInitCalls = map[string]map[string]bool{
-	"os":   {"Getenv": true, "LookupEnv": true, "Environ": true},
-	"net":  {"Dial": true, "DialTimeout": true, "Listen": true},
-	"http": {"Get": true, "Post": true, "Head": true, "ListenAndServe": true},
-	"sql":  {"Open": true},
+	"os":           {"Getenv": true, "LookupEnv": true, "Environ": true},
+	"net":          {"Dial": true, "DialTimeout": true, "Listen": true},
+	"net/http":     {"Get": true, "Post": true, "Head": true, "ListenAndServe": true},
+	"database/sql": {"Open": true},
 }
 
 // Check runs all enabled rules for the standalone module at opts.Dir.
@@ -337,39 +337,62 @@ func (c *checker) checkFile(fset *token.FileSet, rel string, f *ast.File) {
 	}
 
 	for _, decl := range f.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Body == nil {
-			continue
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Body == nil {
+				continue
+			}
+			if checkInit && d.Recv == nil && d.Name.Name == "init" {
+				c.checkInitNode(fset, rel, d.Body, importAlias)
+			}
+			if checkCalls || checkEnv {
+				c.checkCallsAndEnv(fset, rel, d.Body, importAlias, checkCalls, checkEnv)
+			}
+		case *ast.GenDecl:
+			if d.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range d.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for _, val := range vs.Values {
+					if checkInit {
+						c.checkInitNode(fset, rel, val, importAlias)
+					}
+					if checkCalls || checkEnv {
+						c.checkCallsAndEnv(fset, rel, val, importAlias, checkCalls, checkEnv)
+					}
+				}
+			}
 		}
-		if checkInit && fn.Recv == nil && fn.Name.Name == "init" {
-			c.checkInitBody(fset, rel, fn.Body, importAlias)
-		}
-		if !checkCalls && !checkEnv {
-			continue
-		}
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			if checkCalls && c.forbCall[sel.Sel.Name] {
-				c.report(rel, fset.Position(sel.Sel.Pos()).Line, "call/forbidden",
-					fmt.Sprintf("forbidden direct call %s", sel.Sel.Name))
-			}
-			if checkEnv {
-				c.checkEnvCall(fset, rel, call, sel, importAlias)
-			}
-			return true
-		})
 	}
 }
 
-func (c *checker) checkInitBody(fset *token.FileSet, rel string, body *ast.BlockStmt, aliases map[string]string) {
-	ast.Inspect(body, func(n ast.Node) bool {
+func (c *checker) checkCallsAndEnv(fset *token.FileSet, rel string, root ast.Node, aliases map[string]string, checkCalls, checkEnv bool) {
+	ast.Inspect(root, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if checkCalls && c.forbCall[sel.Sel.Name] {
+			c.report(rel, fset.Position(sel.Sel.Pos()).Line, "call/forbidden",
+				fmt.Sprintf("forbidden direct call %s", sel.Sel.Name))
+		}
+		if checkEnv {
+			c.checkEnvCall(fset, rel, call, sel, aliases)
+		}
+		return true
+	})
+}
+
+func (c *checker) checkInitNode(fset *token.FileSet, rel string, root ast.Node, aliases map[string]string) {
+	ast.Inspect(root, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -383,10 +406,9 @@ func (c *checker) checkInitBody(fset *token.FileSet, rel string, body *ast.Block
 			return true
 		}
 		impPath := aliases[ident.Name]
-		pkgBase := filepath.Base(impPath)
-		if funcs, ok := forbiddenInitCalls[pkgBase]; ok && funcs[sel.Sel.Name] {
+		if funcs, ok := forbiddenInitCalls[impPath]; ok && funcs[sel.Sel.Name] {
 			c.report(rel, fset.Position(call.Pos()).Line, "init/no-side-effects",
-				fmt.Sprintf("init() in non-main package must not call %s.%s", pkgBase, sel.Sel.Name))
+				fmt.Sprintf("package initialization in non-main package must not call %s.%s", filepath.Base(impPath), sel.Sel.Name))
 		}
 		return true
 	})
@@ -458,7 +480,7 @@ func (c *checker) checkPublicAPILeaks() error {
 			if !obj.Exported() {
 				continue
 			}
-			if leak := findInternalType(obj.Type(), c.modPath+"/internal", make(map[types.Type]bool)); leak != "" {
+			if leak := findInternalType(obj.Type(), c.modPath, c.modPath+"/internal", make(map[types.Type]bool)); leak != "" {
 				pos := pkg.Fset.Position(obj.Pos())
 				rel, err := filepath.Rel(c.dir, pos.Filename)
 				if err != nil {
@@ -471,7 +493,7 @@ func (c *checker) checkPublicAPILeaks() error {
 	return nil
 }
 
-func findInternalType(t types.Type, internalPrefix string, seen map[types.Type]bool) string {
+func findInternalType(t types.Type, modPath, internalPrefix string, seen map[types.Type]bool) string {
 	if t == nil || seen[t] {
 		return ""
 	}
@@ -479,17 +501,39 @@ func findInternalType(t types.Type, internalPrefix string, seen map[types.Type]b
 	var next []types.Type
 	switch x := t.(type) {
 	case *types.Named:
-		if obj := x.Obj(); obj.Pkg() != nil && within(obj.Pkg().Path(), internalPrefix) {
-			return obj.Pkg().Path() + "." + obj.Name()
+		if obj := x.Obj(); obj.Pkg() != nil {
+			pkgPath := obj.Pkg().Path()
+			if within(pkgPath, internalPrefix) {
+				return pkgPath + "." + obj.Name()
+			}
+			if within(pkgPath, modPath) {
+				next = append(next, x.Underlying())
+				mset := types.NewMethodSet(types.NewPointer(x))
+				for i := 0; i < mset.Len(); i++ {
+					m := mset.At(i).Obj()
+					if m.Exported() {
+						next = append(next, m.Type())
+					}
+				}
+			}
 		}
 		for a := range x.TypeArgs().Types() {
 			next = append(next, a)
+		}
+		for tp := range x.TypeParams().TypeParams() {
+			next = append(next, tp.Constraint())
 		}
 	case *types.Alias:
 		if obj := x.Obj(); obj.Pkg() != nil && within(obj.Pkg().Path(), internalPrefix) {
 			return obj.Pkg().Path() + "." + obj.Name()
 		}
 		next = append(next, x.Rhs())
+	case *types.TypeParam:
+		next = append(next, x.Constraint())
+	case *types.Union:
+		for term := range x.Terms() {
+			next = append(next, term.Type())
+		}
 	case *types.Pointer:
 		next = append(next, x.Elem())
 	case *types.Array:
@@ -507,6 +551,9 @@ func findInternalType(t types.Type, internalPrefix string, seen map[types.Type]b
 			}
 		}
 	case *types.Signature:
+		for tp := range x.TypeParams().TypeParams() {
+			next = append(next, tp.Constraint())
+		}
 		for v := range x.Params().Variables() {
 			next = append(next, v.Type())
 		}
@@ -524,7 +571,7 @@ func findInternalType(t types.Type, internalPrefix string, seen map[types.Type]b
 		}
 	}
 	for _, child := range next {
-		if leak := findInternalType(child, internalPrefix, seen); leak != "" {
+		if leak := findInternalType(child, modPath, internalPrefix, seen); leak != "" {
 			return leak
 		}
 	}
@@ -637,6 +684,10 @@ func checkStandaloneModule(dir, repo, modPath string, excludeTests []Pair) error
 		return fmt.Errorf("standalone export of %s failed: %w", modPath, err)
 	}
 	for _, pair := range excludeTests {
+		relDir := filepath.Clean(filepath.FromSlash(pair.Left))
+		if relDir == "." || !filepath.IsLocal(relDir) {
+			return fmt.Errorf("invalid --exclude-dir-test directory %q: must be a relative path inside module", pair.Left)
+		}
 		subTmp, err := os.MkdirTemp("", "modguard-exclude-")
 		if err != nil {
 			return err
@@ -644,7 +695,7 @@ func checkStandaloneModule(dir, repo, modPath string, excludeTests []Pair) error
 		subDest := filepath.Join(subTmp, "mod")
 		err = copyModuleTree(dir, subDest)
 		if err == nil {
-			err = os.RemoveAll(filepath.Join(subDest, filepath.FromSlash(pair.Left)))
+			err = os.RemoveAll(filepath.Join(subDest, relDir))
 		}
 		if err == nil {
 			_, err = runCmd(subDest, "go", "test", "-mod=readonly", "-count=1", pair.Right)
@@ -670,6 +721,11 @@ func copyModuleTree(src, dst string) error {
 			switch d.Name() {
 			case ".git", "node_modules", "vendor", ".deploy", "bin":
 				return filepath.SkipDir
+			}
+			if rel != "." {
+				if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+					return filepath.SkipDir
+				}
 			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0755)
 		}

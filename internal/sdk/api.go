@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,7 +22,11 @@ func (c *checker) checkTypes(targets []string) error {
 		}
 		patterns = append(patterns, "./"+filepath.ToSlash(rel))
 	}
-	pkgs, err := packages.Load(&packages.Config{Dir: c.root, Mode: packages.LoadSyntax}, patterns...)
+	pkgs, err := packages.Load(&packages.Config{
+		Dir:  c.root,
+		Mode: packages.LoadSyntax,
+		Env:  append(os.Environ(), "GOWORK=off"),
+	}, patterns...)
 	if err != nil {
 		return err
 	}

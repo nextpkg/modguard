@@ -281,3 +281,85 @@ exit 2
 		t.Fatalf("expected [tools/gci] reporting doc.go, got:\n%s", joined)
 	}
 }
+
+func TestDeepAPILeaksAndPackageVarInit(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"go.mod":                   "module example.invalid/deep\n\ngo 1.26.0\n",
+		"internal/secret/types.go": "package secret\ntype Token struct{}\n",
+		"pub.go": `package deep
+import (
+	"os"
+	"example.invalid/deep/internal/secret"
+)
+var leakedEnv = os.Getenv("SECRET")
+type Safe struct { hidden *secret.Token }
+type BadStruct struct { Visible *secret.Token }
+type BadMethod struct{}
+func (*BadMethod) Get() *secret.Token { return nil }
+type BadList []secret.Token
+type BadGeneric[T interface{ *secret.Token }] struct{}
+`,
+	})
+	res, err := Check(Options{Dir: dir, Level: LevelStandard, ForbidEnv: true, SkipStandalone: true})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	joined := strings.Join(res.Problems, "\n")
+	for _, want := range []string{
+		"[init/no-side-effects]",
+		"[env/forbidden]",
+		"exported BadStruct exposes internal type",
+		"exported BadMethod exposes internal type",
+		"exported BadList exposes internal type",
+		"exported BadGeneric exposes internal type",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "exported Safe") {
+		t.Errorf("unexported field on Safe should not trigger leak:\n%s", joined)
+	}
+}
+
+func TestExcludeDirTraversalAndReservedScaffoldName(t *testing.T) {
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"go.mod": "module example.invalid/safe\n\ngo 1.26.0\n",
+		"doc.go": "package safe\n",
+	})
+	res, err := Check(Options{
+		Dir:             dir,
+		Level:           LevelStrict,
+		ExcludeDirTests: []Pair{{Left: "../escape", Right: "./..."}},
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if !strings.Contains(strings.Join(res.Problems, "\n"), "invalid --exclude-dir-test directory") {
+		t.Fatalf("expected path traversal rejection, got:\n%s", strings.Join(res.Problems, "\n"))
+	}
+
+	// Reserved package names must be rejected by GenerateModule.
+	for _, bad := range []string{"main", "internal", "vendor", "testdata"} {
+		if _, err := GenerateModule(ScaffoldOptions{
+			ParentDir:  filepath.Join(t.TempDir(), "nested"),
+			Kind:       "lib",
+			Name:       bad,
+			ModulePath: "example.invalid/" + bad,
+		}); err == nil {
+			t.Errorf("expected reserved name %q to be rejected", bad)
+		}
+	}
+	// Non-existent --dir parent should be created automatically.
+	nestedParent := filepath.Join(t.TempDir(), "new-parent", "services")
+	if _, err := GenerateModule(ScaffoldOptions{
+		ParentDir:  nestedParent,
+		Kind:       "service",
+		Name:       "billing",
+		ModulePath: "example.invalid/billing",
+	}); err != nil {
+		t.Fatalf("expected nested parent dir creation to succeed: %v", err)
+	}
+}

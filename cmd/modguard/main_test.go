@@ -30,6 +30,16 @@ func TestCLIVersionAndHelp(t *testing.T) {
 	if code := run([]string{"nonexistent"}, &out, &errBuf); code != 2 {
 		t.Fatalf("unknown command exit=%d, want 2", code)
 	}
+	out.Reset()
+	errBuf.Reset()
+	if code := run([]string{"check", "--bogus-flag"}, &out, &errBuf); code != 2 {
+		t.Fatalf("unknown flag exit=%d, want 2", code)
+	}
+	out.Reset()
+	errBuf.Reset()
+	if code := run([]string{"help", "sdk", "bogus"}, &out, &errBuf); code != 2 {
+		t.Fatalf("help sdk bogus exit=%d, want 2", code)
+	}
 }
 
 func TestCLINewAndMultiDirInterleavedCheck(t *testing.T) {

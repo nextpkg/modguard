@@ -83,9 +83,9 @@ func generate(dir, kind, name, op, supplier string) error {
 		data.Qualifier = data.SDKRef + "."
 	}
 
-	// Render beside sdks so concurrent checks cannot see a partial SDK. Rename
-	// publishes the complete directory or reports an existing destination.
-	staging, err := os.MkdirTemp(filepath.Dir(dir), ".sdk-new-")
+	// Render inside dir (dot-prefixed temp dir is ignored by sdk check) so
+	// os.Rename stays on the same filesystem even if dir is a mount point.
+	staging, err := os.MkdirTemp(dir, ".sdk-new-")
 	if err != nil {
 		return err
 	}
