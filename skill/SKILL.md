@@ -56,3 +56,8 @@ Static analysis cannot judge domain semantics. Always review these explicitly:
 - **Small interfaces & no pass-through bloat**: accept small interfaces, return concrete types; do not invent single-implementation mega-interfaces or empty pass-through layers solely for symmetry.
 - **Error & logging boundaries**: never leak raw SQL, vendor payloads, or secrets into external error messages; wrap errors with `%w` and log once at the handling boundary.
 - **Behavior-driven tests**: test observable contracts and failure modes (timeouts, cancellation, invalid input, upstream errors); do not test mocks against themselves or treat offline fakes as live integration verification.
+
+## Skill Self-Maintenance & Tool Feedback
+
+- **Keep the installed skill in sync**: this skill is embedded inside the `modguard` binary. After upgrading `modguard`, run `modguard skill update .` (or pass `--dest <dir>` if installed to a custom directory) to atomically refresh files and prune stale ones. Avoid hand-editing the installed copy directly, as updates overwrite managed files. To uninstall cleanly, run `modguard skill remove .`.
+- **Report tool defects upstream**: if `modguard` produces a false positive, misses a generic Go boundary issue, or exhibits a bug, proactively raise the issue with a minimal reproducer so `github.com/nextpkg/modguard` can be fixed — do not silently weaken `--level`, drop checks, or add workarounds in product code.
